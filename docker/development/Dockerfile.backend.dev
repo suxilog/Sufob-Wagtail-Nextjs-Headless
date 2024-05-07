@@ -1,0 +1,90 @@
+FROM python:3.8.18-slim-bullseye
+
+ENV GOSU_VERSION 1.16
+
+# set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+ARG HOST_USER_ID
+ARG HOST_GROUP_ID
+ARG DOCKER_GROUP_ID
+
+
+RUN groupadd -g $HOST_GROUP_ID sufob \
+    && useradd -r -s /bin/bash -g sufob -u $HOST_USER_ID sufob
+# RUN touch /etc/apt/sources.list
+# RUN echo "deb http://mirrors.aliyun.com/debian/ buster main non-free contrib" > /etc/apt/sources.list 
+# RUN cat /etc/apt/sources.list.d/debian.sources
+RUN sed -i "s@http://deb.debian.org@http://mirrors.aliyun.com@g" /etc/apt/sources.list 
+RUN sed -i "s@http://security.debian.org@http://mirrors.aliyun.com@g" /etc/apt/sources.list
+# RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+#下面组合为何dbbackup提供客户端
+# gnupg \
+#     postgresql-common \
+#     && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh \
+#     && apt-get install --yes postgresql-client-15
+RUN apt-get update --yes --quiet \
+    && apt-get install --yes --quiet --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libmariadb-dev \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
+    libwebp-dev \
+    netcat \
+    python3-dev \
+    pkg-config 
+
+RUN apt-get update --yes --quiet \
+    && apt-get install --yes --quiet --no-install-recommends \
+    gnupg \
+    postgresql-common \
+    && echo | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh \
+    && apt-get install --yes postgresql-client-15
+
+# 将本地的 gosu 二进制文件和签名文件复制到容器中
+COPY gosu-amd64 /usr/local/bin/gosu
+COPY gosu-amd64.asc /usr/local/bin/gosu.asc
+
+# 安装必要的软件包
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates gnupg; \
+    rm -rf /var/lib/apt/lists/*; \
+    \
+    # 验证 gosu 签名
+    export GNUPGHOME="$(mktemp -d)"; \
+    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+    gpgconf --kill all; \
+    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+    \
+    chmod +x /usr/local/bin/gosu; \
+    # 验证 gosu 是否正常工作
+    gosu --version; \
+    gosu nobody true
+
+# 清理安装过程中的依赖
+RUN apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+
+# 添加新用户，并设置 gosu 作为 entrypoint
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip install --upgrade pip "gunicorn==20.0.4"
+
+
+# 创建目录并设置工作目录
+RUN mkdir -p /home/backend && chown sufob:sufob /home/backend
+WORKDIR /home/backend
+
+#Install project requirements.
+COPY --chown=sufob:sufob requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy the current directory contents into the container at /app
+COPY --chown=sufob:sufob . .
+# Copy the entrypoint shell script and give permissions to execute
+COPY ./entrypoint.backend.dev.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.backend.dev.sh
+ENTRYPOINT ["entrypoint.backend.dev.sh" ]
+

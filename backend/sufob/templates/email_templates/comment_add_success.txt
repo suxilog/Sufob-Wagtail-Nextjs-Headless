@@ -1,0 +1,10 @@
+
+            收到新留言
+
+            作者：{{ comment.author }}
+
+            留言内容：{{ comment.content }}
+            留言时间：{{ comment.created_at }}
+            网址：{{ comment.website }}
+            文章标题：{{ blog.title }}
+            直接链接：{{ blog.url }}

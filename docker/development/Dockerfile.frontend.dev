@@ -1,0 +1,6 @@
+# 使用官方Node.js作为基础镜像
+FROM node:alpine
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+CMD [ "npm", "run", "dev" ]

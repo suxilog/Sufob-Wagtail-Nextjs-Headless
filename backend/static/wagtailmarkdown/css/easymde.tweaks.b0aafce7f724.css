@@ -1,0 +1,3 @@
+.EasyMDEContainer .editor-toolbar.fullscreen, .EasyMDEContainer .CodeMirror-fullscreen {
+    z-index: 900;
+}

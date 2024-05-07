@@ -1,0 +1,28 @@
+ARG PG_CONTAINER_VERSION=15
+FROM docker.io/library/postgres:${PG_CONTAINER_VERSION}-alpine as builder
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
+RUN apk update && apk add --no-cache build-base linux-headers make postgresql-dev automake libtool autoconf m4
+
+WORKDIR /app
+USER root
+COPY ./scws-1.2.3.tar.bz2 .
+RUN tar xjf scws-1.2.3.tar.bz2 \
+    && cd scws-1.2.3 \
+    && ./configure \
+    && make install
+
+COPY ./zhparser-2.2.tar.gz .
+RUN tar -xzf zhparser-2.2.tar.gz \
+    && cd zhparser-2.2 \
+    && SCWS_HOME=/usr/local make && make install
+
+
+FROM docker.io/library/postgres:${PG_CONTAINER_VERSION}-alpine
+ENV LANG zh_CN.UTF-8
+
+COPY --from=builder /usr/local/lib/postgresql/zhparser.so /usr/local/lib/postgresql/
+COPY --from=builder /usr/local/lib/libscws.* /usr/local/lib/
+COPY --from=builder /usr/local/share/postgresql/extension/zhparser* /usr/local/share/postgresql/extension/
+COPY --from=builder /usr/local/lib/postgresql/bitcode/zhparser* /usr/local/lib/postgresql/bitcode/
+COPY --from=builder /usr/local/share/postgresql/tsearch_data/*.utf8.* /usr/local/share/postgresql/tsearch_data/
+COPY init-db.sql /docker-entrypoint-initdb.d/

@@ -1,0 +1,24 @@
+
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>新留言通知</title>
+    </head>
+    <body>
+        <h2></h2>
+        <p>您好！我们收到了一条新的留言，请及时处理。</p>
+        <h3>留言详情：</h3>
+        <ul>
+            <li>作者：{{ comment.author }}</li>
+            <li>留言内容：{{ comment.content }}</li>
+            <li>留言时间：{{ comment.created_at }}</li>
+            <li>网址：{{ comment.website }}</li>
+            <li>文章标题：{{ blog.title }}</li>
+            <li>直接链接：{{ blog.url }}</li>
+        </ul>
+        <p></p>
+        <p><br>
+        </p>
+    </body>
+</html>

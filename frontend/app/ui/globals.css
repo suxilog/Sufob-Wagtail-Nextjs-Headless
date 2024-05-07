@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+    body {
+        font-family: "PingFang SC", "Microsoft Yahei",
+            "Helvetica Neue", Helvetica, STHeiTi, sans-serif;
+    }
+
+    .prose code {
+        @apply text-base;
+    }
+
+    /* prose styles here */
+    .prose h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply text-zinc-800 dark:text-zinc-100;
+    }
+    h1 {
+        @apply text-3xl;
+    }
+    h2 {
+        @apply text-2xl;
+    }
+    h3 {
+        @apply text-xl;
+    }
+    h4 {
+        @apply text-lg;
+    }
+    h5 {
+        @apply text-base;
+    }
+    h6 {
+        @apply text-sm;
+    }
+}
+.windows,
+.windows * {
+    scrollbar-width: thin;
+    scrollbar-color: #a4a4a4 #fff;
+}
+
+.windows ::-webkit-scrollbar,
+.windows::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.windows ::-webkit-scrollbar-track,
+.windows::-webkit-scrollbar-track {
+    background-color: #fff;
+}
+
+.windows ::-webkit-scrollbar-thumb,
+.windows::-webkit-scrollbar-thumb {
+    background-color: #a4a4a4;
+    border-radius: 20px;
+    border: 3px solid #fff;
+}
+.glass {
+    background: rgba(57, 56, 56, 0.52);
+    backdrop-filter: blur(13px) saturate(150%);
+    -webkit-backdrop-filter: blur(13px) saturate(150%);
+    z-index: -1;
+}
+
+.shadow {
+    box-shadow: -5px 3px 8px 1px rgba(0, 0, 0, 0.12);
+}
+
+.wrap-balance {
+    text-wrap: balance;
+}
+
+.text-xl-tight {
+    font-size: 1.375rem;
+    line-height: 1.272;
+}
+
+p > code {
+    @apply text-gray-500 bg-gray-200 px-1 py-[2px];
+}
+.md-content h2 {
+    @apply wrap-balance tracking-tight font-bold my-12 first:mt-0 scroll-mt-[120px];
+}
+.md-content h3,
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+    @apply tracking-tight font-medium mb-6 mt-12 first:mt-0 scroll-mt-[120px];
+}
+.md-content p {
+    @apply my-6 text-gray-600;
+}

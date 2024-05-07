@@ -1,0 +1,157 @@
+services:
+
+  frontend:
+    container_name: sufob_frontend
+
+    build:
+      context: ../../frontend
+      dockerfile: ../docker/development/Dockerfile.frontend.dev
+    restart: unless-stopped
+
+    volumes:
+      - ../../frontend:/app
+      - ../../backend/media:/app/public/media
+    ports:
+      - 3000:3000
+    networks:
+      - dev_sufobnet
+    environment:
+      - TZ=Asia/Shanghai
+
+    depends_on:
+      - backend
+    # labels:
+    #   ofelia.enabled: "false"
+    #   ofelia.job-exec.build-nextjs.schedule: "@daily"
+    #   ofelia.job-exec.build-nextjs.command: "npm run build"
+
+  backend:
+    container_name: sufob_backend
+    build:
+      context: ../../backend
+      args:
+        - HOST_USER_ID=1000
+        - HOST_GROUP_ID=1000
+        # We need set the same docker group id in docker container as the host, use cat /etc/group to check the group id
+        - DOCKER_GROUP_ID=1001
+      dockerfile: ../docker/development/Dockerfile.backend.dev
+    init: true
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:9000
+    volumes:
+      - ../../backend/media:/home/backend/media
+      - web_backend_static_dev:/home/backend/static
+
+      - ../../backend:/home/backend
+      - ../../backups:/home/dbbackups
+      - ../../logs/gunicorn:/var/log/gunicorn
+    ports:
+      - 9000:9000
+    # expose:
+      # - 9000
+    env_file:
+      - ../../deploy/.env.dev
+      - ../../deploy/db.env.dev
+
+    environment:
+      - TZ=Asia/Shanghai
+      - DJANGO_SETTINGS_MODULE=sufob.settings.dev
+      - DEBUG=True
+      - FRONTEND_URL=http://dev.sufob.com
+
+    depends_on:
+      - pg_db_dev
+    networks:
+      - dev_sufobnet
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.db-backup.schedule: "@daily"
+      ofelia.job-exec.db-backup.command: "python manage.py dbbackup -z"
+      # other cron job like update_index
+
+
+  pg_db_dev:
+    container_name: sufob_pg_db_dev
+    build:
+      context: ../../deploy/postgres
+      dockerfile: ../../docker/development/Dockerfile.postgres.dev
+    restart: always
+    volumes:
+      - postgres_data_15:/var/lib/postgresql/data
+      - ../../db_backups/postgres_dump:/home/sufobcms/db_backups
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+        - "5432:5432"
+    networks: 
+      - dev_sufobnet
+    env_file:
+      - ../../deploy/db.env.dev
+  nginx_dev:
+    container_name: sufob_nginx
+    build:
+      context: ../../deploy/nginx
+      dockerfile: ../../docker/development/Dockerfile.nginx.dev
+    restart: unless-stopped
+
+    volumes:
+
+      - ../../frontend/.next:/var/www/frontend/_next
+      - ../../backend/media:/var/www/frontend/media
+      - web_backend_static_dev:/var/www/frontend/static
+      - ../../logs/nginx:/var/log/nginx
+      - ../../deploy/nginx/sites-available:/etc/nginx/sites-available
+      
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - frontend
+      - backend
+
+    env_file:
+      - ../../deploy/.env.dev
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - dev_sufobnet
+
+  certbot_dev:
+    container_name: sufob_certbot
+    image: certbot/certbot
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../../deploy/config/certbot/conf:/etc/letsencrypt
+      - ../../deploy/config/certbot/www:/var/www/certbot
+      - ../../logs/certbot:/var/log/letsencrypt
+
+    networks:
+      - dev_sufobnet
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  cron_dev:
+    image: mcuadros/ofelia:latest
+    container_name: sufob_cron
+    depends_on:
+      - backend
+    command: daemon --docker
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../../logs/cron_job:/tmp/sufob_cron_job
+    networks:
+      - dev_sufobnet
+    labels:
+      ofelia.save-folder: "/tmp/sufob_cron_job"
+      ofelia.save-only-on-error: "false"
+
+
+volumes:
+  mysql_data_dev:
+  web_backend_static_dev:
+  postgres_data_15:
+networks:
+  dev_sufobnet:

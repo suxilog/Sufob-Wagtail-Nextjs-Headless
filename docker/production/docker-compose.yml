@@ -1,0 +1,163 @@
+services:
+
+  frontend:
+    container_name: sufob_frontend_prod
+    image: sufob_frontend_prod:latest
+    build:
+      context: ../../frontend
+      dockerfile: ../docker/production/Dockerfile.frontend
+
+    restart: always
+    volumes:
+      - ../../backend/media:/app/public/media:ro
+    ports:
+      - "3000:3000"
+    # expose:
+    #   - 3000
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - sufobnet
+    depends_on:
+      - backend
+    # labels:
+    #   ofelia.enabled: "false"
+    #   ofelia.job-exec.next-build.schedule: "@every 5m"
+    #   ofelia.job-exec.next-build.command: "npm run build"
+
+  backend:
+    container_name: sufob_backend_prod
+    image: sufob_backend_prod:latest
+    build:
+      context: ../../backend
+      args:
+        - HOST_USER_ID=1000
+        - HOST_GROUP_ID=1000
+        # We need set the same docker group id in docker container as the host, use cat /etc/group to check the group id
+        - DOCKER_GROUP_ID=1001
+      dockerfile: ../docker/production/Dockerfile.backend
+    init: true
+    restart: always
+    volumes:
+      - ../../backend/media:/home/backend/media
+      - web_backend_static:/home/backend/static
+      
+      - ../../backups:/home/dbbackups
+      - ../../logs/gunicorn:/var/log/gunicorn
+
+    expose:
+      - 9000
+    env_file:
+      - ../../deploy/.env
+      - ../../deploy/db.env
+
+    environment:
+      - TZ=Asia/Shanghai
+      - DJANGO_SETTINGS_MODULE=sufob.settings.production
+      - FRONTEND_URL=https://www.sufob.com
+
+    depends_on:
+      - pg_db
+    networks:
+      - sufobnet
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.db-backup.schedule: "@daily"
+      ofelia.job-exec.db-backup.command: "python manage.py dbbackup -z"
+
+      ofelia.job-exec.update-index.schedule: "@hourly"
+      ofelia.job-exec.update-index.command: "python manage.py update_index"
+
+
+  pg_db:
+    container_name: sufob_pg_db
+    build:
+      context: ../../deploy/postgres
+      dockerfile: ../../docker/production/Dockerfile.postgres
+    restart: always
+    volumes:
+      - postgres_data_15:/var/lib/postgresql/data
+      - ../../db_backups/postgres_dump:/home/sufobcms/db_backups
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+        - "5432:5432"
+    networks: 
+      - sufobnet
+    env_file:
+      - ../../deploy/db.env
+
+  nginx:
+    container_name: sufob_nginx_prod
+    build:
+      context: ../../deploy/nginx
+      dockerfile: ../../docker/production/Dockerfile.nginx
+    restart: always
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    volumes:
+      - web_backend_static:/var/www/frontend/static
+      - ../../deploy/nginx/error_pages:/var/www/error_pages
+      
+      - ../../deploy/nginx/sites-available:/etc/nginx/sites-available
+      # certbot证书
+      - ../../deploy/ssl_config/certbot/conf:/etc/letsencrypt
+      - ../../deploy/ssl_config/certbot/www:/var/www/certbot
+      - ../../deploy/ssl_config/certbot/ssl:/etc/nginx/ssl
+      # 日志
+      - ../../logs/nginx:/var/log/nginx
+
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - frontend
+      - backend
+
+    env_file:
+      - ../../deploy/.env
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - sufobnet
+
+  certbot:
+    container_name: sufob_certbot_prod
+    image: certbot/certbot
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../../deploy/ssl_config/certbot/conf:/etc/letsencrypt
+      - ../../deploy/ssl_config/certbot/www:/var/www/certbot
+      - ../../logs/certbot:/var/log/letsencrypt
+
+    networks:
+      - sufobnet
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  cron:
+    container_name: sufob_cron_prod
+    image: mcuadros/ofelia:latest
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+    command: daemon --docker
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../../logs/cron_job:/tmp/sufob_cron_job
+    networks:
+      - sufobnet
+    labels:
+      ofelia.save-folder: "/tmp/sufob_cron_job"
+      ofelia.save-only-on-error: "false"
+
+
+volumes:
+  mysql_data:
+  web_backend_static:
+  postgres_data_15:
+networks:
+  sufobnet:

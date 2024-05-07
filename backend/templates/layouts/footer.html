@@ -1,0 +1,24 @@
+{% load static wagtailuserbar wagtailimages_tags i18n %}
+<footer>[[ footerMessage ]]</footer>
+<footer class="page-footer font-small mt-5">
+    <hr class="mt-0">
+    <div class="container">
+        <div class="row">
+
+            {% with socialsettings=settings.site_settings.SocialMediaSettings TFSettings=settings.site_settings.TFSystemSettings %}
+                <div class="text-center text-muted pt-3 clearfix col-md-6 col-sm-12">
+                    <span class="float-md-left">
+                        © {% now 'Y' %} Copyright
+                        ]</span>
+                </div>
+                <div class="text-center text-muted pt-3 clearfix col-md-6 col-sm-12">
+                    <a class="float-md-right " href="/sitemap.xml">{% trans "Site Map" %}</a> <span class="d-sm-none">|</span> {% if TFSettings.site_company_name %}
+                        {% blocktrans with site_miit=TFSettings.site_miit %}
+                        {% endblocktrans %}
+                    {% endif %}</span>
+                </div>
+            {% endwith %}
+        </div>
+    </div>
+</div>
+</footer>
